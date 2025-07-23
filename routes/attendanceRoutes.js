@@ -7,7 +7,7 @@ const {
   getMyAttendance,
   getAllAttendance,
 } = require('../controllers/attendanceController');
-const auth = require('../middlewares/authMiddleware');
+const auth = require('../middleware/auth');
 // Optional: Uncomment this if you want admin-only access to some routes
 // const { isAdmin } = require('../middlewares/roleMiddleware');
 
