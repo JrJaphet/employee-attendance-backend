@@ -1,33 +1,67 @@
-// routes/attendanceRoutes.js
-
 const express = require('express');
-const {
-  clockIn,
-  clockOut,
-  getMyAttendance,
-  getAllAttendance,
-} = require('../controllers/attendanceController');
-const auth = require('../middleware/auth');
-// Optional: Uncomment this if you want admin-only access to some routes
-// const { isAdmin } = require('../middlewares/roleMiddleware');
-
 const router = express.Router();
+const auth = require('../middleware/auth');  // ← Fixed: Remove destructuring
+const Attendance = require('../models/Attendance');
+const User = require('../models/User');
 
-// ✅ All routes below require authentication
-router.use(auth);
+// Clock in
+router.post('/clock-in', auth, async (req, res) => {
+  try {
+    const attendance = new Attendance({
+      userId: req.user.id,
+      userName: req.user.name,
+      clockIn: new Date(),
+    });
+    await attendance.save();
+    res.status(201).json(attendance);
+  } catch (error) {
+    console.error('Clock-in error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
-// 👨‍💼 Clock in the current user
-router.post('/clock-in', clockIn);
+// Clock out
+router.post('/clock-out', auth, async (req, res) => {
+  try {
+    const attendance = await Attendance.findOne({
+      userId: req.user.id,
+      clockOut: null,
+    }).sort({ clockIn: -1 });
+    if (!attendance) {
+      return res.status(400).json({ message: 'No active clock-in found' });
+    }
+    attendance.clockOut = new Date();
+    await attendance.save();
+    res.status(200).json(attendance);
+  } catch (error) {
+    console.error('Clock-out error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
-// 🕒 Clock out the current user
-router.post('/clock-out', clockOut);
+// Get user's attendance
+router.get('/my', auth, async (req, res) => {
+  try {
+    const attendance = await Attendance.find({ userId: req.user.id }).sort({ clockIn: -1 });
+    res.status(200).json(attendance);
+  } catch (error) {
+    console.error('Error fetching attendance:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
-// 📅 Get current user's attendance records
-router.get('/me', getMyAttendance);
-
-// 🧾 Get all users' attendance records (admin-only — filter on frontend or add middleware)
-// To restrict to admins only, uncomment this line below:
-// router.get('/', isAdmin, getAllAttendance);
-router.get('/', getAllAttendance);
+// Get all attendance (admin only)
+router.get('/', auth, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Access denied' });
+  }
+  try {
+    const attendance = await Attendance.find().sort({ clockIn: -1 });
+    res.status(200).json(attendance);
+  } catch (error) {
+    console.error('Error fetching all attendance:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
 module.exports = router;
